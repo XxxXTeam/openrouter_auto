@@ -3,7 +3,7 @@
 Features
 --------
 * Periodically (every 5 minutes) fetches GET https://openrouter.ai/api/v1/models
-  and keeps only the ``:free`` ones in memory.
+  and keeps free models in memory.
 * Exposes ``/v1/models`` and ``/v1/chat/completions`` (+ ``/v1/completions``)
   in the OpenAI API shape, so any OpenAI SDK can talk to this server.
 * Reads API keys from ``key.txt`` (one per line). If the file is missing it
@@ -51,6 +51,13 @@ CLIENT_API_KEYS = (
     _parse_api_keys(os.environ.get("OPENAI_API_KEY", ""))
     | _parse_api_keys(os.environ.get("OPENAI_API_KEYS", ""))
 )
+FREE_MODEL_IDS = {"openrouter/auto"}
+
+
+def _is_free_model(model: dict[str, Any]) -> bool:
+    model_id = str(model.get("id", ""))
+    return model_id.endswith(":free") or model_id in FREE_MODEL_IDS
+
 
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO"),
@@ -152,7 +159,7 @@ class ModelCache:
         self._updated_at: float = 0.0
 
     async def set(self, raw_models: list[dict[str, Any]]) -> None:
-        free = [m for m in raw_models if str(m.get("id", "")).endswith(":free")]
+        free = [m for m in raw_models if _is_free_model(m)]
         async with self._lock:
             self._raw = free
             self._updated_at = time.time()

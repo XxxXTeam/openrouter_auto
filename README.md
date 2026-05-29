@@ -1,6 +1,6 @@
 # openrouter-auto
 
-OpenAI 兼容的 OpenRouter 反代，自动每 5 分钟刷新 OpenRouter 上所有 `:free` 模型，并基于 `key.txt` 做 API key 轮询；遇到 `429` 自动切换下一个 key。
+OpenAI 兼容的 OpenRouter 反代，自动每 5 分钟刷新 OpenRouter 上所有 `:free` 模型，并额外纳入 `openrouter/auto` 自动选模入口；基于 `key.txt` 做 API key 轮询，遇到 `429` 自动切换下一个 key。
 
 ## 安装
 
@@ -70,7 +70,7 @@ print(resp.choices[0].message.content)
 
 支持端点：
 
-- `GET /v1/models` —— 仅返回缓存的 `:free` 模型
+- `GET /v1/models` —— 返回缓存的免费模型（`:free` 模型和 `openrouter/auto`）
 - `GET /v1/models/{id}`
 - `POST /v1/chat/completions`（含 `stream: true`）
 - `POST /v1/completions`
