@@ -7,9 +7,8 @@ Features
 * Exposes ``/v1/models`` and ``/v1/chat/completions`` (+ ``/v1/completions``)
   in the OpenAI API shape, so any OpenAI SDK can talk to this server.
 * Reads API keys from ``key.txt`` (one per line). If the file is missing it
-  is created on startup. Keys are used in round-robin fashion and a key that
-  returns HTTP 429 is put on a short cooldown so the next request transparently
-  uses another key.
+  is created on startup. Keys are used in round-robin fashion; upstream HTTP
+  429 responses are returned to the caller without retrying another key.
 """
 from __future__ import annotations
 
@@ -43,7 +42,6 @@ def _parse_api_keys(value: str) -> set[str]:
 OPENROUTER_BASE = os.environ.get("OPENROUTER_BASE", "https://openrouter.ai/api/v1")
 KEY_FILE = Path(os.environ.get("OPENROUTER_KEY_FILE", "key.txt"))
 REFRESH_INTERVAL = int(os.environ.get("MODEL_REFRESH_INTERVAL", "300"))  # 5 min
-KEY_COOLDOWN = int(os.environ.get("KEY_COOLDOWN", "60"))  # seconds after 429
 REQUEST_TIMEOUT = float(os.environ.get("UPSTREAM_TIMEOUT", "300"))
 HTTP_REFERER = os.environ.get("OPENROUTER_REFERER", "https://github.com/XxxXteam/openrouter-auto")
 X_TITLE = os.environ.get("OPENROUTER_TITLE", "openrouter-auto")
@@ -91,13 +89,12 @@ def require_client_api_key(authorization: str | None = Header(default=None)) -> 
 # Key manager
 # ---------------------------------------------------------------------------
 class KeyManager:
-    """Round-robin pool of OpenRouter API keys with 429 cooldown."""
+    """Round-robin pool of OpenRouter API keys."""
 
     def __init__(self, path: Path):
         self.path = path
         self._lock = Lock()
         self._keys: list[str] = []
-        self._cooldown: dict[str, float] = {}
         self._cycle: itertools.cycle | None = None
         self.reload()
 
@@ -118,23 +115,11 @@ class KeyManager:
 
     # -- selection -------------------------------------------------------
     def acquire(self) -> str | None:
-        """Return the next usable key, skipping ones in cooldown."""
+        """Return the next key in round-robin order."""
         with self._lock:
             if not self._keys:
                 return None
-            now = time.time()
-            for _ in range(len(self._keys)):
-                key = next(self._cycle)  # type: ignore[arg-type]
-                if self._cooldown.get(key, 0) <= now:
-                    return key
-            # all keys are in cooldown -> return the one that frees up soonest
-            return min(self._cooldown, key=self._cooldown.get)  # type: ignore[arg-type]
-
-    def mark_rate_limited(self, key: str) -> None:
-        with self._lock:
-            self._cooldown[key] = time.time() + KEY_COOLDOWN
-        log.warning("key %s...%s rate-limited, cooling down %ds",
-                    key[:6], key[-4:], KEY_COOLDOWN)
+            return next(self._cycle)  # type: ignore[arg-type]
 
     @property
     def has_keys(self) -> bool:
@@ -270,11 +255,6 @@ async def _forward_non_stream(path: str, body: dict[str, Any]) -> JSONResponse:
                 last_error = (502, f"upstream connection error: {exc}")
                 continue
 
-            if resp.status_code == 429:
-                key_manager.mark_rate_limited(key)
-                last_error = (429, resp.text)
-                continue
-
             return JSONResponse(
                 status_code=resp.status_code,
                 content=_safe_json(resp),
@@ -310,10 +290,6 @@ async def _forward_stream(path: str, body: dict[str, Any]) -> StreamingResponse:
                         headers=_build_upstream_headers(key),
                         json=body,
                     ) as resp:
-                        if resp.status_code == 429:
-                            key_manager.mark_rate_limited(key)
-                            await resp.aread()
-                            continue
                         if resp.status_code >= 400:
                             text = (await resp.aread()).decode("utf-8", errors="replace")
                             yield _sse_error(resp.status_code, text)
@@ -325,7 +301,7 @@ async def _forward_stream(path: str, body: dict[str, Any]) -> StreamingResponse:
                 except httpx.HTTPError as exc:
                     yield _sse_error(502, f"upstream connection error: {exc}")
                     return
-            yield _sse_error(429, "all keys are rate-limited, please retry later")
+            yield _sse_error(502, "no response from upstream")
 
     return StreamingResponse(event_source(), media_type="text/event-stream")
 

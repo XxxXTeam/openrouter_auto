@@ -1,6 +1,6 @@
 # openrouter-auto
 
-OpenAI 兼容的 OpenRouter 反代，自动每 5 分钟刷新 OpenRouter 上所有 `:free` 模型，并额外纳入 `openrouter/auto` 自动选模入口；基于 `key.txt` 做 API key 轮询，遇到 `429` 自动切换下一个 key。
+OpenAI 兼容的 OpenRouter 反代，自动每 5 分钟刷新 OpenRouter 上所有 `:free` 模型，并额外纳入 `openrouter/auto` 自动选模入口；基于 `key.txt` 做 API key 轮询，遇到上游 `429` 会直接返回给调用方。
 
 ## 安装
 
@@ -40,7 +40,6 @@ sk-or-v1-yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
 | `OPENAI_API_KEYS` | 空 | 访问本服务的多个 Bearer key，逗号分隔 |
 | `OPENROUTER_BASE` | `https://openrouter.ai/api/v1` | OpenRouter API 地址 |
 | `MODEL_REFRESH_INTERVAL` | `300` | 模型刷新秒数 |
-| `KEY_COOLDOWN` | `60` | 单 key 触发 429 后的冷却秒数 |
 | `OPENROUTER_KEY_FILE` | `key.txt` | key 文件路径 |
 | `UPSTREAM_TIMEOUT` | `300` | 上游请求超时 |
 
