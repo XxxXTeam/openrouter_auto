@@ -1,6 +1,6 @@
 # openrouter-auto
 
-OpenAI 兼容的 OpenRouter 反代，自动每 5 分钟刷新 OpenRouter 上所有 `:free` 模型，并额外纳入 `openrouter/auto` 自动选模入口；基于 `key.txt` 做 API key 轮询，遇到上游 `429` 会直接返回给调用方。
+OpenAI 兼容的 OpenRouter 反代，自动每 5 分钟刷新 OpenRouter 上所有 `:free` 模型
 
 ## 安装
 
