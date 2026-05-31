@@ -49,7 +49,7 @@ CLIENT_API_KEYS = (
     _parse_api_keys(os.environ.get("OPENAI_API_KEY", ""))
     | _parse_api_keys(os.environ.get("OPENAI_API_KEYS", ""))
 )
-FREE_MODEL_IDS = {"openrouter/auto"}
+FREE_MODEL_IDS = {"openrouter/free"}
 
 
 def _is_free_model(model: dict[str, Any]) -> bool:
